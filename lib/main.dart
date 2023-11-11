@@ -3,14 +3,16 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
-void main() {
-  FlutterError.onError = (FlutterErrorDetails details) {
-    print("--------------------------------");
-    print("Framework error:  ${details.exception}");
-    print("Stacktrace :  ${details.stack}");
-  };
+Future<void> main() async {
+  runZonedGuarded(() {
+    FlutterError.onError = (FlutterErrorDetails details) { // Moving inside runZonedGuarded - https://github.com/flutter/flutter/issues/48972#issuecomment-708837980
+      print("--------------------------------");
+      print("Framework error:  ${details.exception}");
+      print("Stacktrace :  ${details.stack}");
+    };
 
-  runZonedGuarded(() async {
+    // Zone.current.handleUncaughtError
+
     runApp(const MyApp());
   },(error, stackTrace) {
     print("--------------------------------");
@@ -91,29 +93,38 @@ class _MyHomePageState extends State<MyHomePage> {
                   ),
                 FloatingActionButton(
                   onPressed: () async {
-                    _manageResponse();
+                    throwExceptionFromAsyncStream();
                   },
-                  tooltip: 'Uncaught exception test from async* (no effect !)',
+                  tooltip: 'Uncaught exception test from async* (shouldn\'t this be captured by the runZonedGuarded?)',
                   child: const Icon(Icons.error, color: Colors.redAccent),
                 ),
                 FloatingActionButton(
                   onPressed: () async {
-                    try {
-                      _manageResponse();
-                    } catch(e) {
-                      print('Try/catch handled: $e');
+                    throw Exception("Hi, I am an uncaught exception !");
+                  },
+                  tooltip: 'Uncaught exception test (works OK)',
+                  child: const Icon(Icons.error),
+                ),
+                FloatingActionButton(
+                  onPressed: () async {
+                    await for (final string in throwExceptionFromAsyncStream()) {
+                      print("String: " + string);
                     }
                   },
-                  tooltip: 'Try/catch handling test from async* (no effect !)',
-                  child: const Icon(Icons.error, color: Colors.redAccent),
+                  tooltip: 'Uncaught exception test from async* / await for (works OK)',
+                  child: const Icon(Icons.error),
                 ),
-                  FloatingActionButton(
-                    onPressed: () async {
-                      throw Exception("Hi, I am an uncaught exception !");
-                    },
-                    tooltip: 'Uncaught exception test (works OK)',
-                    child: const Icon(Icons.error),
-                  ),
+                // FloatingActionButton(
+                //   onPressed: () async {
+                //     try {
+                //       _manageResponse();
+                //     } catch(e) {
+                //       print('This will never be triggered'); // https://github.com/dart-lang/sdk/issues/47985#issuecomment-1806803466
+                //     }
+                //   },
+                //   tooltip: 'Try/catch handling test from async*',
+                //   child: const Icon(Icons.error, color: Colors.redAccent),
+                // ),
                 // FloatingActionButton(
                 //   onPressed: () async {
                 //     try {
@@ -159,8 +170,8 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   // https://github.com/dart-lang/sdk/issues/47985#issuecomment-998987431
-  Stream<String> _manageResponse() async* {
-    throw Exception("Exception from _manageResponse");
+  Stream<String> throwExceptionFromAsyncStream() async* {
+    throw Exception("throwExceptionFromAsyncStream");
   }
 
   fetch(ResponseType responseType) async {
